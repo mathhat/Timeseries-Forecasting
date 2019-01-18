@@ -22,7 +22,7 @@ Here's an explanatory table over the weather data
 
 def load_weather(sek=300):
     '''loads weather data, interpolates it to the amount of seconds you'd like, then returns it in a df.'''
-    pd_raw = pd.read_csv('file:///home/josephkn/Documents/Fortum/weatherdata/ten_min_good.csv')
+    pd_raw = pd.read_csv('file:///home/josephkn/Documents/Fortum/master/weatherdata/ten_min_good.csv')
     pd_raw = pd_raw.loc[:,pd_raw.columns!='St.no']
     pd_raw = pd_raw.loc[:,pd_raw.columns!='Unnamed: 0']
     new_columns = ['Date',
@@ -37,6 +37,7 @@ def load_weather(sek=300):
     pd_raw[new_columns[0]]= pd.to_datetime(pd_raw[new_columns[0]],format="%d.%m.%Y-%H:%M")
     pd_raw = pd_raw.set_index('Date')
     df = pd_raw.resample('%ds'%sek).mean().interpolate()
+    del pd_raw
     return df
 
 def load_data(filename):
@@ -53,7 +54,7 @@ def load_data(filename):
 
 
 
-def smart_read(filename,nrows=30000,chunksize=50000):
+def smart_read(path,nrows=30000,chunksize=50000):
     '''loads zipped fortum district data into a dataframe with dates, tags and values'''
     chunks = []
     column_names = ['Date',
@@ -63,7 +64,7 @@ def smart_read(filename,nrows=30000,chunksize=50000):
     dtype={'Date': str,
        'tag': str,
        'Value': np.float32}
-    chunks = pd.read_csv('file:///home/josephkn/Documents/Fortum/master/weatherdata/%s.zip'%filename,
+    chunks = pd.read_csv('file://'+path,
         sep=',',
         na_filter=False,
         usecols=[1,2,3],
@@ -177,8 +178,13 @@ def cross_reference_datetimes(relevant_tags,arrays):
 
     for i in range(len(relevant_tags)):
         arrays[relevant_tags[i]]= arrays[relevant_tags[i]][earliest:latest]
-    return arrays#mask0
-
+    return arrays
+def create_time_variables(start,end,time_interval):
+    time = np.arange(end-start)*time_interval
+    steps_in_a_day = (24*3600.)
+    sin_day = np.sin(time*2*np.pi/steps_in_a_day)
+    cos_day = np.cos(time*2*np.pi/steps_in_a_day)
+    return sin_day,cos_day
 
 def remove_time_aspect(arrays,start,end):
     tags =(list(arrays.keys()))
@@ -256,6 +262,8 @@ def load_permutation(n_units,units,tags,arrays,path,time_interval,permutation):
     for u in range(n_units):
         unit=units[u]
         count = 0
+        if permutation[u] == -1:
+            continue
         for tag in tags:
             #size = os.stat(path+tag+'.pickle').st_size
             if tag[4:6] == unit:

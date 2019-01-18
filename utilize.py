@@ -19,7 +19,7 @@ from model import train
 def fetch(timesteps,future_vision,time_interval,
                                     test_percentage=10,
                                     epochs = 1,
-                                    Permutation='06211000',
+                                    Permutation='0 6 2 1 1 0 0 0',
                                     nodes1=128,
                                     patience=0,
                                     multipred=1,
@@ -51,6 +51,7 @@ def fetch(timesteps,future_vision,time_interval,
         exit()
 
 def multi_pred (model,tests,timesteps,time_interval,pdt_index):
+
     future = timesteps
     in_out = deque(testx[0,0,:],timesteps)
     ks = []
@@ -69,19 +70,3 @@ def multi_pred (model,tests,timesteps,time_interval,pdt_index):
             k = model.predict(placehold)
             ks.append(k[0][pdt_index])
     return ks
-permutation = "06211000"
-timesteps = 50; future = 1; time_interval = 60;activation = 'linear'; epochs=3;multipred=0;
-train(timesteps,future,time_interval,Permutation=permutation,activation=activation,preserve=1,patience=0,smooth=1,epochs=epochs,multipred=multipred)#,nodes1=256,nodes2=256)
-model,testx,testy,pdt_index = fetch(timesteps,future,time_interval,Permutation=permutation,smooth=1,epochs=epochs,multipred=multipred)
-if testy.shape[0] > 1000:
-    k=1000
-    testx = testx[:1000]
-    testy = testy[:1000]
-ks = multi_pred(model,testx,timesteps,time_interval,pdt_index)
-colors = ['cyan','magenta','red','black','green','blue']
-for i in range(0,testy.shape[0]-timesteps-1,timesteps):
-    plt.plot(range(i,i+timesteps),ks[i:(i+timesteps)],colors[np.random.randint(0,len(colors))])
-#k = model.predict(testx.reshape((testx.shape[0],testx.shape[2],-1)))
-plt.plot(testy[:,pdt_index],label='truth')
-plt.legend()
-plt.show()
