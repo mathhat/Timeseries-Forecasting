@@ -1,10 +1,12 @@
 from tools import *
 import pandas as pd
+import matplotlib.pyplot as plt
 #import matplotlib.pyplot as plt
 
 def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0,multipred=0,weather=0,time=0,path_to_places='none'):
     labeltag = "VIK_PDT2002.vY"
     path = "/home/josephkn/Documents/Fortum/master/pickle5/"
+    path2 = "/home/josephkn/Documents/Fortum/master/pickle6/"
     arrays = dict()
     tags=[]
     units = []
@@ -25,12 +27,30 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
         tags = list(arrays.keys())
         arrays = cross_reference_datetimes(tags,arrays)
         n_units = len(tags)
-    elif place != 'none' and path!= 'none':
-        path_to_places = path_to_places+place+'.zip'
-        df = smart_read(path_to_places)
+    if multipred and permutation == 'none' and place != 'none':
+        df = pickle_load(path2+place+'6.pickle')
+        tags = tags_of_place(df)
+        units = []
+        pdts = []
+        for tag in tags:
+            unit = tag[4:7]
+            if unit[-1].isdigit():
+                unit = unit[:-1]
+            if unit not in units:
+                units.append(unit)
+            if unit =='PDT':
+                pdts.append(tag)
+        arrays = extract_arrays2(pdts,df)
+        for tag in pdts:
+            arrays[tag]=arrays[tag].resample('%ds'%time_interval).mean()
+            arrays[tag]=arrays[tag].fillna(method='ffill')
+            array.plot()
+        print('swiggity')
+        plt.show()
         #print(tags)
-        #print(len(tags))
         exit()
+
+
     else:
         n_units = 1
         for tag in tags:

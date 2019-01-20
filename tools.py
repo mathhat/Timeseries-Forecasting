@@ -54,7 +54,7 @@ def load_data(filename):
 
 
 
-def smart_read(path,nrows=30000,chunksize=50000):
+def smart_read(path,nrows=30000,chunksize=50000,sensor_size=20000):
     '''loads zipped fortum district data into a dataframe with dates, tags and values'''
     chunks = []
     column_names = ['Date',
@@ -72,18 +72,18 @@ def smart_read(path,nrows=30000,chunksize=50000):
         dtype = dtype,
         chunksize=chunksize,
         header=None,
-        low_memory=False,
+        low_memory=True,
         compression='zip')
 
     chunks = pd.concat(chunks)
     if nrows == 0:
         #print(chunks.info())
         return chunks
-    tags = tags_of_place(chunks,25000)
+    tags = tags_of_place(chunks,sensor_size)
     chunks = chunks.loc[chunks['tag'].isin(tags)]
     #pd_raw.columns = ['Date','tag','Value']
     print(chunks.info())
-
+    del tags
     return chunks
 
 
@@ -117,7 +117,7 @@ def tags_of_place(df,min_obs=0):
     del k
     return tags
 
-def extract_arrays2(tags,df,time_interval):
+def extract_arrays2(tags,df):
     '''return values in the dataframe which belongs to the tags'''
     arrays = dict()
     #df = df.sort_values(by='tag')
@@ -129,7 +129,7 @@ def extract_arrays2(tags,df,time_interval):
         slicee = slicee.sort_index()
         #slicee = slicee.resample('%ds'%time_interval).mean()
         arrays[tag] = slicee
-    del grp
+    del grp,df
     return arrays
 
 def smooth(df,win,gauss=0):

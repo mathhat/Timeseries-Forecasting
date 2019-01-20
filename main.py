@@ -3,7 +3,7 @@ from model import train
 import matplotlib.pyplot as plt
 
 permutation = "0 0 0 0 0 0 0 0" #['TT', 'JY', 'TY', 'FT', 'JT', 'TZ', 'PD', 'PR']
-place = 'VIK'
+place = 'SKO'
 path_to_places = "/home/josephkn/Documents/Fortum/master/weatherdata/"
 placepred = 1 #switch that activates place based model
 timesteps = 10; future = 1; time_interval = 600
