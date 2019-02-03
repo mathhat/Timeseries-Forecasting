@@ -1,12 +1,13 @@
 from tools import *
 import pandas as pd
 import matplotlib.pyplot as plt
-#import matplotlib.pyplot as plt
+from datetime import datetime#
 
 def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0,multipred=0,weather=0,time=0,path_to_places='none'):
     labeltag = "VIK_PDT2002.vY"
     path = "/home/josephkn/Documents/Fortum/master/pickle5/"
     path2 = "/home/josephkn/Documents/Fortum/master/pickle6/"
+    path3 = "/home/josephkn/Documents/Fortum/master/"
     arrays = dict()
     tags=[]
     units = []
@@ -18,7 +19,8 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
             if line[4:6] not in units:
                 units.append(line[4:6])
 
-    if multipred and permutation != 'none':
+    if multipred and permutation != 'none' and place=='none':
+
 
         permutations = permutation
         permutations = [int(i) for i in permutations.split(' ')]
@@ -27,30 +29,27 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
         tags = list(arrays.keys())
         arrays = cross_reference_datetimes(tags,arrays)
         n_units = len(tags)
-    if multipred and permutation == 'none' and place != 'none':
-        df = pickle_load(path2+place+'6.pickle')
-        tags = tags_of_place(df)
-        units = []
-        pdts = []
-        for tag in tags:
-            unit = tag[4:7]
-            if unit[-1].isdigit():
-                unit = unit[:-1]
-            if unit not in units:
-                units.append(unit)
-            if unit =='PDT':
-                pdts.append(tag)
-        arrays = extract_arrays2(pdts,df)
-        for tag in pdts:
-            arrays[tag]=arrays[tag].resample('%ds'%time_interval).mean()
-            arrays[tag]=arrays[tag].fillna(method='ffill')
-            array.plot()
-        print('swiggity')
-        plt.show()
-        #print(tags)
-        exit()
+    elif multipred and place!='none' and permutation =="none":
+        tags = load_tags_of_place(path3,place)
+        units = load_units_of_place(path3,place)
+        n_units = len(units)
+        permutation,tags_of_unit = create_data_permutation(n_units,units,tags)
+        #here I randomly leave some of the permutation outside
+        for i in range(len(permutation)):
+            if np.random.randint(0,2):
+                permutation[i] = -1
 
+        #let's force pdt2002
+        if place=='VIK':
+            index_unit = units.index("PDT")
+            index_tag = list(tags_of_unit["PDT"]).index(labeltag)
+            permutation[index_unit]=index_tag
 
+        arrays = load_permutation(len(units),units,tags,dict(),path3+"%s_pickles/"%place,time_interval, permutation)
+        tags =list(arrays.keys())
+        n_units = len(tags)
+    elif multipred and place != 'none' and permutation != 'none':
+        k = 0
     else:
         n_units = 1
         for tag in tags:
@@ -58,10 +57,9 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
                 arrays = dict()
                 arrays[tag] =  pickle_load(path+tag+'.pickle')
                 #arrays[tag]=arrays[tag].resample('s').mean()
-                arrays[tag]=arrays[tag].resample('%ds'%time_interval).mean()
-                arrays[tag]=arrays[tag].fillna(method='ffill')
-
+                arrays[tag]=arrays[tag].resample('%ds'%time_interval).fillna(method='ffill')
                 #arrays[tag]=arrays[tag].fillna(method='ffill')
+
 
                 tags=[tag]
                 break
@@ -80,6 +78,15 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
     #here we define what time of year we're interested in
     FROM = pd.to_datetime('090117') #format is mo da yr ######## here's the date hack
     TO = pd.to_datetime('040118')
+    for tag in tags:
+        ind = arrays[tag].index
+        init = (FROM-ind[0]).total_seconds()
+        end = (ind[-1]-TO).total_seconds()
+        if init < 0 or end < 0:
+            del arrays[tag]
+            tags.remove(tag)
+            n_units-=1
+
     ind = arrays[tags[0]].index
     for i in range(len(ind)):
         if ind[i] == FROM:
@@ -89,88 +96,14 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
         if ind[i] == TO:
             end=i
             break
+
     #here I remove data outside of the relevant timeframe
     arrays = remove_time_aspect(arrays,start,end)
 
-
-
-    Arrays = np.zeros((n_units,len(arrays[tags[0]])-1),dtype=np.float32)
-
-
-    i=0
-    means0 = []
     for t in range(len(tags)):
         tag = tags[t]
         if 'PDT' in tag:
-            pdt_index = i #line below calculates the differenced series
-        means0.append(arrays[tag][0])
-        Arrays[i] =  arrays[tag].squeeze()[1:] - arrays[tag].squeeze()[0:-1]
-        #plt.plot(arrays[tag][-1007:],label='before scaling')
+            pdt_index = t #line below calculates the differenced series
+    del ind
 
-        i+=1
-    del arrays
-
-    dims = list(range(Arrays.shape[0]))
-    means=[]
-    stds=[]
-    for i in dims:
-        mean = Arrays[i].mean()
-        std = Arrays[i].std()
-        Arrays[i] -= mean
-        Arrays[i] /= std
-        means.append(mean)
-        stds.append(std)
-
-
-
-    #here we create non-categorical time data
-    if multipred and time:
-        sin,cos = create_time_variables(start,end,time_interval)
-        Arrays = np.vstack((Arrays,sin[:-1]))
-        Arrays = np.vstack((Arrays,cos[:-1]))
-
-
-    indices = extract_indices2(kernel_size,future,[],Arrays)
-
-    indices = np.asarray(indices)
-    ranger = np.arange(len(indices))
-    dataX = np.zeros((len(indices),kernel_size,Arrays.shape[0]),dtype=np.float)
-    datay = np.zeros((len(indices),Arrays.shape[0]),dtype=np.float32)
-    X = [extract_samples2(x,kernel_size,indices,dataX,datay,ranger,Arrays[x]) for x in dims]
-    #X = parmap.map(extract_samples2,dims,kernel_size,indices,dataX,datay,ranger,Arrays)
-
-    del X,Arrays,indices,ind
-    return dataX, datay,pdt_index,tags[pdt_index],means0,means,stds
-'''
-if smooth:
-    for tag in tags:
-        win = 1200//time_interval
-        print('win: ',win)
-        plt.plot(arrays[tag]+1,alpha=0.8,label='truth',)
-        arrays[tag]=arrays[tag].rolling(window=win,win_type='gaussian',center=True).mean(std=1)
-        plt.plot(arrays[tag],label='smooth')
-        plt.legend()
-        plt.show()
-        print(arrays[tag].head(),arrays[tag].tail())
-'''
-
-'''
-if smooth:
-    win = 1200//time_interval
-    #arrays = np.zeros(([len(dims)]+[Arrays.shape[1]-(win-1)]))
-    arrays = np.zeros(([len(dims)]+[Arrays.shape[1]]))
-    def running_mean(x, N):
-        cumsum = np.cumsum(np.insert(x, 0, 0))
-        return (cumsum[N:] - cumsum[:-N]) / float(N)
-    for i in dims:
-        arrays[i] = running_mean(Arrays[i],win)
-    Arrays = arrays
-    del arrays
-#import parmap
-'''
-#press = 1000*(1-(Arrays[0]+288.9414)*(Arrays[0]-3.9863)**2)/508929.2*(Arrays[0]*68.12963)
-
-#Arrays = np.vstack((Arrays,press))
-#Arrays=Arrays[:,1:]-Arrays[:,0:-1]
-#Arrays=(Arrays[:,1:]-Arrays[:,0:-1])/time_interval
-#Arrays[1] = np.abs(Arrays[1])
+    return arrays,tags,pdt_index,tags[pdt_index],permutation

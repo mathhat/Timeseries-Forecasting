@@ -47,6 +47,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             injpiu
     except:
         print('Initializing training of permutation %s'%Permutation)
+
     arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time,path)
     Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
@@ -97,15 +98,17 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     datay = datay[:,pdt_index][:,np.newaxis]
     testy = testy[:,pdt_index][:,np.newaxis]
     model = tf.keras.Sequential()
+    '''
     model.add(tf.keras.layers.CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
                                         ,input_shape=datax.shape[1:],
                                         return_sequences=False,
                                         kernel_regularizer=tf.keras.regularizers.l2(0.001)))
     '''
-    model.add(tf.keras.layers.Dense(nodes2,kernel_initializer='glorot_normal',
+    model.add(tf.keras.layers.Dense(nodes2,input_shape=(timesteps,),
+                                    kernel_initializer='glorot_normal',
                                     activation=activation,
                                     kernel_regularizer=tf.keras.regularizers.l2(0.001)))
-    '''
+
     if multipred:
         model.add(tf.keras.layers.Dense(datay.shape[-1],
                                         kernel_initializer='glorot_normal',
@@ -123,10 +126,10 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
                             callbacks=[tf.keras.callbacks.EarlyStopping(patience=patience)])#,validation_data=(X_valid, y_valid))
         scores = model.evaluate(testx, testy, verbose=0)
     else:
-        history = model.fit(datax, datay[:,pdt_index], validation_split=validation_percentage/100,
+        history = model.fit(datax.squeeze(), datay[:,pdt_index], validation_split=validation_percentage/100,
                             epochs=epochs, batch_size=batch_size, verbose=1,shuffle=0,
                             callbacks=[tf.keras.callbacks.EarlyStopping(patience=patience)])
-        scores = model.evaluate(testx, testy[:,pdt_index], verbose=0)
+        scores = model.evaluate(testx.squeeze(), testy[:,pdt_index], verbose=0)
 
     print('average mse:', scores)
     if savemod:
@@ -151,18 +154,31 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
                                             permutation[:-1],future_vision,weather,time))
 
     if save_bench and multipred==0:
-        k = model.predict(testx).squeeze() #predicted testy
-        #print(np.mean(abs(k-testy)), 'model abs error')
-        copy_last = np.mean((testy[1:]-testy[0:-1])**2)
+        k = model.predict(testx.squeeze()).squeeze() #predicted testy
+        #successful reconstruction
+        '''
+        if differentiate:
+            reconstructed_output = pdt_original[(test_cursor+timesteps):-1].squeeze()+k*stds[pdt_index]
+            print(np.mean(abs(testy[1:]-testy[0:-1])), 'copy last step abs error')
+            plt.plot(reconstructed_output,label='model')
+            plt.plot(pdt_original[(test_cursor+timesteps+1):])
+            plt.legend()
+            plt.show()
+        else:
+            plt.plot(pdt_original[(test_cursor+timesteps+1):])
+            plt.plot(k*stds[pdt_index]+means[pdt_index],label='model')
+            plt.legend()
+            plt.show()
+            print(abs(pdt_original[(test_cursor+timesteps+1):]-(k*stds[pdt_index]+means[pdt_index])).mean())
+        '''
 
         errors = abs(k-testy)
-        error_sort = np.sort(errors)
-        median = np.median(error_sort)
-
         physical_error = errors.mean()*stds[pdt_index]
         print(physical_error)
-        with open('bench_uni_lstm/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
-            f.write('%f %f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,copy_last,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
+        error_sort = np.sort(errors)
+        median = np.median(error_sort)
+        with open('bench_uni/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
+            f.write('%f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:
         plt.plot(history.history['loss'])

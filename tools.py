@@ -80,6 +80,7 @@ def smart_read(path,nrows=30000,chunksize=50000,sensor_size=20000):
         #print(chunks.info())
         return chunks
     tags = tags_of_place(chunks,sensor_size)
+    print(len(tags))
     chunks = chunks.loc[chunks['tag'].isin(tags)]
     #pd_raw.columns = ['Date','tag','Value']
     print(chunks.info())
@@ -104,6 +105,20 @@ def smart_read_individual(filename):
 
 def pickle_load(path):
     return pd.read_pickle(path)
+def load_tags_of_place(path,place):
+    #loads tags of entire district if you've run pickle_pickler.py for that district
+    tags = []
+    with open(path+"%s_pickles/tags.txt"%place,"r") as f:
+        for line in f:
+            tags.append(line[:-1])
+    return(tags)
+def load_units_of_place(path,place):
+    #loads tags of entire district if you've run pickle_pickler.py for that district
+    tags = []
+    with open(path+"%s_pickles/units.txt"%place,"r") as f:
+        for line in f:
+            tags.append(line[:-1])
+    return(tags)
 
 def tags_of_place(df,min_obs=0):
     ''''returns tags of the place you want, with a minimum amount of observations'''
@@ -117,19 +132,53 @@ def tags_of_place(df,min_obs=0):
     del k
     return tags
 
-def extract_arrays2(tags,df):
+def tags_of_place_sparse(df,min_obs=0):
+    ''''returns tags of the place you want, with a minimum amount of observations'''
+    k = Counter(df['tag']) #dict object that with the # of observation of each tag
+    tags = list()
+    for tag in k:
+        unit = tag[4:7]
+        if ('vY' in tag[-3:]) and (min_obs<k[tag]) and ((unit[:2]=="PT")or(unit[:2]=="TT")or(unit=="PDT")):
+            tags.append(str(tag))
+    del k
+    return tags
+
+def extract_arrays_asterix(arrays,tags,df,time_interval): #this was created to deal with fragmented pickle loads that needed fragmented processing
     '''return values in the dataframe which belongs to the tags'''
-    arrays = dict()
+    #arrays = dict()
     #df = df.sort_values(by='tag')
+    already = list(arrays.keys())
     grp = df.groupby('tag',sort=False, as_index=False)
+    del df
     for tag,slicee in grp:
         slicee = slicee.drop(columns=['tag'])
         slicee['Date'] = pd.to_datetime(slicee['Date'])
         slicee = slicee.set_index('Date')
         slicee = slicee.sort_index()
-        #slicee = slicee.resample('%ds'%time_interval).mean()
-        arrays[tag] = slicee
-    del grp,df
+        slicee = slicee.resample('%ds'%time_interval).fillna(method='ffill')
+        if tag in already:
+            arrays[tag] = pd.concat([arrays[tag],slicee])
+        else:
+            arrays[tag] = slicee
+    del grp,slicee
+    return arrays
+
+
+def extract_arrays2(tags,df,time_interval):
+    '''return values in the dataframe which belongs to the tags'''
+    arrays = dict()
+    #df = df.sort_values(by='tag')
+    grp = df.groupby('tag',sort=False, as_index=False)
+    del df
+    for tag,slicee in grp:
+        if tag in tags:
+            slicee = slicee.drop(columns=['tag'])
+            slicee['Date'] = pd.to_datetime(slicee['Date'])
+            slicee = slicee.set_index('Date')
+            slicee = slicee.sort_index()
+            slicee = slicee.resample('%ds'%time_interval).fillna(method='ffill')
+            arrays[tag] = slicee
+    del grp,slicee
     return arrays
 
 def smooth(df,win,gauss=0):
@@ -241,23 +290,28 @@ def most_freq_specific_tags(units,tags,arrays,path,time_interval):
                 best_tag = tag
 
         arrays[best_tag] = pickle_load(path+best_tag+'.pickle')
-        arrays[best_tag]=arrays[best_tag].resample('%ds'%time_interval).mean()
+        arrays[best_tag]=arrays[best_tag].resample('%ds'%time_interval)
         arrays[best_tag]=arrays[best_tag].fillna(method='ffill')
     return arrays
 
 def create_data_permutation(n_units,units,tags):
-    permutation = np.zeros(n_units)
+    permutation = np.zeros(n_units,dtype=np.int8)
+    tags_of_unit = dict()
     for u in range(n_units):
         unit=units[u]
         count=0
+        tags_of_unit[unit] = []
         for tag in tags:
-            if tag[4:6] == unit:
+            unitt = tag[4:(4+len(unit))]
+            if unit == unitt:
                 count +=1
+                tags_of_unit[unit].append(tag)
         permutation[u] = count
 
     for i in range(n_units):
-        permutation[i] = np.random.randint(0,permutation[i])
-    return permutation
+        rand = np.random.randint(0,permutation[i])
+        permutation[i] = rand
+    return permutation,tags_of_unit
 def load_permutation(n_units,units,tags,arrays,path,time_interval,permutation):
     for u in range(n_units):
         unit=units[u]
@@ -266,11 +320,14 @@ def load_permutation(n_units,units,tags,arrays,path,time_interval,permutation):
             continue
         for tag in tags:
             #size = os.stat(path+tag+'.pickle').st_size
-            if tag[4:6] == unit:
+            unitt = tag[4:7]
+            if unitt[-1].isdigit():
+                unitt = unitt[:-1]
+            if unitt == unit:
                 if count==permutation[u]:
                     arrays[tag] = pickle_load(path+tag+'.pickle')
-                    arrays[tag]=arrays[tag].resample('%ds'%time_interval).mean()
-                    arrays[tag]=arrays[tag].fillna(method='ffill')
+                    arrays[tag]=arrays[tag].resample('%ds'%time_interval).fillna(method='ffill')
+                    #arrays[tag]=arrays[tag].fillna(method='ffill')
                     break
                 else:
                     count +=1
