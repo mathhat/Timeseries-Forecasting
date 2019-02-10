@@ -49,7 +49,12 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
         tags =list(arrays.keys())
         n_units = len(tags)
     elif multipred and place != 'none' and permutation != 'none':
-        k = 0
+        tags = load_tags_of_place(path3,place)
+        units = load_units_of_place(path3,place)
+        n_units = len(units)
+        arrays = load_permutation(len(units),units,tags,dict(),path3+"%s_pickles/"%place,time_interval, permutation)
+        tags =list(arrays.keys())
+        n_units = len(tags)
     else:
         n_units = 1
         for tag in tags:
