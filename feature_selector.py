@@ -8,7 +8,7 @@ from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import f_regression,mutual_info_regression
 #import matplotlib.pyplot as plt
-time_interval = 300
+time_interval = 600
 place = "VIK"
 sub.call("mkdir %s_pickles"%place,shell=True)
 path = "/home/josephkn/Documents/Fortum/master/%s_pickles/"%place
@@ -72,12 +72,14 @@ for i in range(len(ind)-1,0,-1):
         end=i
         break
 arrays = remove_time_aspect(arrays,start,end)
+arrays["wind_dir1"]=np.sin(arrays["wind_dir"])
+arrays["wind_dir2"]=np.cos(arrays["wind_dir"])
 
 labels = arrays[labeltag]
-labels = (labels[1:].copy().squeeze()-labels.mean() /labels.std()).astype(np.float64)
+labels = (labels[1:].copy().squeeze()-labels.mean() /labels.std()).astype(np.float32)
 n_samples = len(labels)
 n_features = len(tags)
-Arrays = np.zeros((n_samples,n_features),dtype=np.float64)
+Arrays = np.zeros((n_samples,n_features),dtype=np.float32)
 i=0
 for tag in tags:
     Arrays[:,i] = (arrays[tag][:-1].squeeze() - arrays[tag].mean())/arrays[tag].std()
@@ -96,6 +98,7 @@ sort = np.argsort(scores).tolist()[::-1]
 print(sort)
 print(scores[sort[0]])
 print(tags[sort[0]])
+
 with open('k_best_features_weather_MIR_%d.txt'%time_interval,'w') as f:
     for i in range(k):
         f.write(str(scores[sort[i]])+', '+tags[sort[i]]+'\n')

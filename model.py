@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from tools import *
-from load_multi_pred import load_perm
+from load_multi_pred import load_perm, load_features
 from sys import exit
 from subprocess import call
 import matplotlib.pyplot as plt
@@ -36,7 +36,9 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
                                                 smooth=0,
                                                 time=0,
                                                 differentiate =0,
-                                                path = '/'):
+                                                method ='f_score',
+                                                optimized_features=0,
+                                                k=20):
     try:
         f =open('/home/josephkn/Documents/Fortum/master/models/%dtimesteps_%dtimeinterval_%dforward_%de_%dn_%s_multipred=%d'%(timesteps,time_interval,future_vision,epochs,nodes1,Permutation,multipred))
         f.close()
@@ -47,7 +49,10 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             injpiu
     except:
         print('Initializing training of permutation %s'%Permutation)
-    arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time,path)
+    if optimized_features:
+        arrays,tags,pdt_index,pdt_tag,permutation = load_features(time_interval,future_vision,timesteps,place,method,time,k)
+    else:
+        arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time)
     Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
     pdt_original = arrays[pdt_tag].copy()
@@ -96,16 +101,18 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     datay = datay[:test_cursor]
     datay = datay[:,pdt_index][:,np.newaxis]
     testy = testy[:,pdt_index][:,np.newaxis]
+    print(datay.shape)
+    print(testy.shape)
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
                                         ,input_shape=datax.shape[1:],
                                         return_sequences=False,
                                         kernel_regularizer=tf.keras.regularizers.l2(0.001)))
-    '''
+
     model.add(tf.keras.layers.Dense(nodes2,kernel_initializer='glorot_normal',
                                     activation=activation,
                                     kernel_regularizer=tf.keras.regularizers.l2(0.001)))
-    '''
+
     if multipred:
         model.add(tf.keras.layers.Dense(datay.shape[-1],
                                         kernel_initializer='glorot_normal',
@@ -116,7 +123,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
                                         kernel_regularizer=tf.keras.regularizers.l2(0.001),
                                         activation='linear'))
 
-    model.compile(loss='mean_squared_error', optimizer= 'adam')
+    model.compile(loss='mean_squared_error', optimizer= 'adam',metrics=['mse','mae'])
     if multipred:
         history = model.fit(datax, datay, validation_split=validation_percentage/100,
                             epochs=epochs, batch_size=batch_size, verbose=1,shuffle=0,
@@ -144,25 +151,51 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             f.write('%f %d %d %d %s %d %d %d\n'% (scores,patience,nodes1,timesteps,
                                             Permutation,future_vision,weather,time))
 
-    if save_bench and multipred and place!='none':
-        permutation = ''.join((str(i)+',') for i in permutation.tolist())
-        with open('bench_place_sparse/benchmarks_%s_%dinterval_%dsteps_multipred.txt'%(place,time_interval,timesteps),'a')as f:
-            f.write('%f %d %d %d %s %d %d %d\n'% (scores,patience,nodes1,timesteps,
-                                            permutation[:-1],future_vision,weather,time))
+    if save_bench and multipred and place!='none':###########ERRORS ARE BEHAVING WEIRDLY!
+        method_=''
+        if optimized_features:
+            dir = "bench_multi_lstm_dense"
+            additional='_k=%d'%k
+            method = method
+        else:
+            dir = "bench_place_sparse"
+            additional =''
+            permutation = ''.join((str(i)+',') for i in permutation.tolist())
+        print(model.metrics_names)
+        mse,mae = scores[1:]
+        k = model.predict(testx).squeeze() #predicted y
+        copy_last = np.mean((testy[1:].squeeze()-testy[0:-1].squeeze())**2)
+        errors = (k-testy.squeeze())
+
+        abserrors = abs(errors)
+        error_sort = np.sort(abserrors)
+        median = np.median(error_sort)
+        physical_error = abserrors.mean()*stds[pdt_index]
+        print(stds[pdt_index],'std')
+        print(abs(errors).mean(),'mae')
+        print(median,'median abs')
+        print(scores,'scores')
+        print(physical_error,'physical')
+
+        print(dir+'/benchmarks_%s_%dinterval_%dsteps_multipred%s.txt'%(place,time_interval,timesteps,additional))
+        with open(dir+'/benchmarks_%s_%dinterval_%dsteps_multipred%s.txt'%(place,time_interval,timesteps,additional),'a')as f:
+            f.write('%f %f %f %f %d %d %d %s %d %d %d %s \n'% (physical_error,mse,median,copy_last,patience,nodes1,timesteps,
+                                            permutation[:-1],future_vision,weather,time,method_))
 
     if save_bench and multipred==0:
         k = model.predict(testx).squeeze() #predicted testy
         #print(np.mean(abs(k-testy)), 'model abs error')
         copy_last = np.mean((testy[1:]-testy[0:-1])**2)
-
-        errors = abs(k-testy)
-        error_sort = np.sort(errors)
+        print(k.shape)
+        print(testy.shape)
+        errors = (k-testy.squeeze())
+        error_sort = np.sort(abs(errors))
         median = np.median(error_sort)
-
-        physical_error = errors.mean()*stds[pdt_index]
+        mse,mae = scores[1:]
+        physical_error = abs(errors).mean()*stds[pdt_index]
         print(physical_error)
         with open('bench_uni_lstm/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
-            f.write('%f %f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,copy_last,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
+            f.write('%f %f %f %f %d %d %d %s %d %d\n'% (physical_error,mse,median,copy_last,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:
         plt.plot(history.history['loss'])

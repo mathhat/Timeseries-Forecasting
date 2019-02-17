@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime#
 
-def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0,multipred=0,weather=0,time=0,path_to_places='none'):
+def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0,multipred=0,weather=0,time=0):
     labeltag = "VIK_PDT2002.vY"
     path = "/home/josephkn/Documents/Fortum/master/pickle5/"
     path2 = "/home/josephkn/Documents/Fortum/master/pickle6/"
@@ -112,3 +112,66 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
     del ind
 
     return arrays,tags,pdt_index,tags[pdt_index],permutation
+def load_features(time_interval,future,kernel_size,place,method='f_score',time=0,k=20):
+    path = "/home/josephkn/Documents/Fortum/master/"
+    time_interval_=time_interval
+    if method=='MIR' and time_interval_ < 180:
+        time_interval_ = 180
+    methods = ["k_best_features_covar_%d.txt"%time_interval,
+        "k_best_features_weather_MIR_%d.txt"%time_interval_,
+        "k_best_features_weather_fscore_%d.txt"%time_interval]
+    for files in methods:
+        if method in files:
+            break
+
+    arrays = dict()
+    tags=[]
+    units = []
+    with open(path+place+"_pickles/"+files,'r') as f:
+        print("loading features chosen from "+files)
+        line = f.readline() #initial line
+        tag = line.split(' ')[-1]
+        tags.append(tag[:-1])
+        for line in f:
+            line = line.split(' ')[-1]
+            for tag in tags:
+                if line.split('.')[0] == tag.split('.')[0]:
+                    line='0'
+                    break
+            if line =='0':
+                continue
+            else:
+                tag=line
+                tags.append(tag[:-1])
+            if (len(tags) == k and method!='covar') or (len(tags) == k+1):
+                break
+    weather_df = load_weather(time_interval)
+    print(weather_df.columns)
+    arrays = dict() #load best features
+    for tag in tags[:]:
+        if "." in tag:
+            arrays[tag] =  pickle_load(path+place+"_pickles/"+tag+'.pickle')
+            arrays[tag] =  arrays[tag].resample('%ds'%time_interval).fillna(method='ffill')
+        elif tag == "labels":
+            tags.remove(tag)
+            continue
+        else:
+            arrays[tag] = weather_df[tag]
+    del weather_df
+    print(arrays.keys())
+
+    #here we define what time of year we're interested in
+    FROM = pd.to_datetime('090117') #format is mo da yr ######## here's the date hack
+    TO = pd.to_datetime('040118')
+
+    ind = arrays[tags[0]].index
+    for i in range(len(ind)):
+        if ind[i] == FROM:
+            start=i
+            break
+    for i in range(len(ind)-1,0,-1):
+        if ind[i] == TO:
+            end=i
+            break
+    arrays = remove_time_aspect(arrays,start,end)
+    return arrays,tags,0,tags[0],'none'

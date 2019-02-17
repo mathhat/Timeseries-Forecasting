@@ -48,7 +48,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     except:
         print('Initializing training of permutation %s'%Permutation)
 
-    arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time,path)
+    arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time)
     Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
     pdt_original = arrays[pdt_tag].copy()
@@ -172,10 +172,10 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             print(abs(pdt_original[(test_cursor+timesteps+1):]-(k*stds[pdt_index]+means[pdt_index])).mean())
         '''
 
-        errors = abs(k-testy)
-        physical_error = errors.mean()*stds[pdt_index]
+        errors = (k-testy.squeeze())
+        physical_error = abs(errors).mean()*stds[pdt_index]
         print(physical_error)
-        error_sort = np.sort(errors)
+        error_sort = np.sort(abs(errors))
         median = np.median(error_sort)
         with open('bench_uni/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
             f.write('%f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
