@@ -16,7 +16,7 @@ places = places[:-1]
 path_to_places = "/home/josephkn/Documents/Fortum/master/weatherdata/"
 placepred = 1 #switch that activates place based model
 timesteps = 10; future = 1; time_interval = 300
-activation = 'relu'; epochs=5; nodes=128;batch_size=64;
+activation = 'sigmoid'; epochs=5; nodes=128;batch_size=64;
 weather = 0 #multipred must also be true for weatherdata to be used in model
 time = 0
 runs = 100

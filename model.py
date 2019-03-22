@@ -4,7 +4,9 @@ from tools import *
 from load_multi_pred import load_perm, load_features
 from sys import exit
 from subprocess import call
+from dateframe import holidays
 import matplotlib.pyplot as plt
+
 '''
 timesteps = how many time increments to feed into the model
 #future_vision = how many time increments into the future you wanna look
@@ -18,8 +20,8 @@ timesteps = how many time increments to feed into the model
 #patience = patience is how many times during training we allow the epoch no return a non improving MSE before cancelling the training
 '''
 def train(timesteps,future_vision,time_interval,batch_size=64,
-                                                validation_percentage=2,
-                                                test_percentage=10,
+                                                validation_percentage=5,
+                                                test_percentage=20,
                                                 activation = 'relu',
                                                 epochs = 1,
                                                 Permutation='none',#'0 6 2 1 1 0 0 0',
@@ -151,7 +153,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             f.write('%f %d %d %d %s %d %d %d\n'% (scores,patience,nodes1,timesteps,
                                             Permutation,future_vision,weather,time))
 
-    if save_bench and multipred and place!='none':###########ERRORS ARE BEHAVING WEIRDLY!
+    if save_bench and multipred and place!='none':###########ERRORS ARE BEHAVING NORMALLY!
         method_=''
         if optimized_features:
             dir = "bench_multi_lstm_dense"
@@ -176,25 +178,25 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         print(median,'median abs')
         print(scores,'scores')
         print(physical_error,'physical')
-
+        exit()
         print(dir+'/benchmarks_%s_%dinterval_%dsteps_multipred%s.txt'%(place,time_interval,timesteps,additional))
         with open(dir+'/benchmarks_%s_%dinterval_%dsteps_multipred%s.txt'%(place,time_interval,timesteps,additional),'a')as f:
             f.write('%f %f %f %f %d %d %d %s %d %d %d %s \n'% (physical_error,mse,median,copy_last,patience,nodes1,timesteps,
                                             permutation[:-1],future_vision,weather,time,method_))
-
     if save_bench and multipred==0:
         k = model.predict(testx).squeeze() #predicted testy
         #print(np.mean(abs(k-testy)), 'model abs error')
         copy_last = np.mean((testy[1:]-testy[0:-1])**2)
-        print(k.shape)
-        print(testy.shape)
         errors = (k-testy.squeeze())
         error_sort = np.sort(abs(errors))
         median = np.median(error_sort)
         mse,mae = scores[1:]
         physical_error = abs(errors).mean()*stds[pdt_index]
         print(physical_error)
-        with open('bench_uni_lstm/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
+        #check = k*stds[pdt_index] + means[pdt_index]
+        #print(check.shape,pdt_original[test_cursor:].shape)
+        #check = np.abs(check-pdt_original[(timesteps+test_cursor):].squeeze()).mean()
+        with open('bench_uni_lstm_dense2/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
             f.write('%f %f %f %f %d %d %d %s %d %d\n'% (physical_error,mse,median,copy_last,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:

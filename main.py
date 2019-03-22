@@ -19,16 +19,17 @@ for line in file:
     places.append(p)
 places = places[:-1]
 '''
-timesteps = 10; future = 1; time_interval = 180
-activation = 'relu'; epochs=10; nodes=128;batch_size=64;
+timesteps = 10; future = 1; time_interval =  60
+activation = 'sigmoid'; epochs=20; nodes=128;batch_size=64;
 weather = 0 #multipred must also be true for weatherdata to be used in model
 time = 0
 runs = 5
 if place!='none':
     permutation = 'none'
-#for timesteps in [2,5,10,15]:
-#    for time_interval in [60,180,300,600,1200]:
-#        for differentiate in[0,1]:
+'''
+for timesteps in [2,5,10,15]:
+    for time_interval in [60,180,300,600,1200]:
+        for differentiate in[0,1]:'''
 model, testx, testy,pdt_index = train( #trains model based on the variable above
     timesteps,future,time_interval,Permutation=permutation,place=place,activation=activation,
     preserve=0,

@@ -1,7 +1,7 @@
 from tools import *
 import pandas as pd
 import matplotlib.pyplot as plt
-from datetime import datetime#
+from datetime import datetime
 
 def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0,multipred=0,weather=0,time=0):
     labeltag = "VIK_PDT2002.vY"

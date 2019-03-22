@@ -177,7 +177,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         print(physical_error)
         error_sort = np.sort(abs(errors))
         median = np.median(error_sort)
-        with open('bench_uni/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
+        with open('bench_uni2/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
             f.write('%f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:
