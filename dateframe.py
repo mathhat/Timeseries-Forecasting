@@ -29,4 +29,3 @@ def holidays(freq, start="090117",end="040118"):
     df.loc[df.index.isin(holidays)] = 1
     df=df.resample(str(freq)+"s").mean().ffill()
     return df.val.values
-holidays(freq=300, start="090117",end="040118")

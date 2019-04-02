@@ -48,7 +48,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     except:
         print('Initializing training of permutation %s'%Permutation)
 
-    arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time)
+    arrays,tags,pdt_index,pdt_tag,permutation,start,end = load_perm(time_interval,Permutation,place,smooth,multipred,weather)
     Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
     pdt_original = arrays[pdt_tag].copy()
@@ -177,7 +177,10 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         print(physical_error)
         error_sort = np.sort(abs(errors))
         median = np.median(error_sort)
-        with open('bench_uni2/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
+        dir = "bench_uni"
+        if activation == "sigmoid":
+            dir+="2"
+        with open(dir+'/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
             f.write('%f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:

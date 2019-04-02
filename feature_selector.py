@@ -65,11 +65,11 @@ if k: #if we haven't saved the tags of this area, that are active during winter 
 ind = arrays[labeltag].index
 for i in range(len(ind)):
     if ind[i] == FROM:
-        start=i
+        start=ind[i]
         break
 for i in range(len(ind)-1,0,-1):
     if ind[i] == TO:
-        end=i
+        end=ind[i]
         break
 arrays = remove_time_aspect(arrays,start,end)
 arrays["wind_dir1"]=np.sin(arrays["wind_dir"])

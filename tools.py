@@ -228,17 +228,53 @@ def cross_reference_datetimes(relevant_tags,arrays):
     for i in range(len(relevant_tags)):
         arrays[relevant_tags[i]]= arrays[relevant_tags[i]][earliest:latest]
     return arrays
-def create_time_variables(start,end,time_interval):
-    time = np.arange(end-start)*time_interval
-    steps_in_a_day = (24*3600.)
-    sin_day = np.sin(time*2*np.pi/steps_in_a_day)
-    cos_day = np.cos(time*2*np.pi/steps_in_a_day)
-    return sin_day,cos_day
+import matplotlib.pyplot as plt
+
+def create_time_variables(start,end,time_interval): #takes datetime interval, returns arrays which showcase which month/day/week/hour it currently is
+    dates = pd.date_range(start, end,freq=str(time_interval)+"s") #freq=str(freq)+"s")
+    timedata = dict()
+    timedata["month"] = dates.month
+    timedata["week"] = dates.week
+    timedata["day"] = dates.day
+    timedata["hour"] = dates.hour
+    timedata["minute"] = dates.minute
+    timedata["weekday"] = dates.weekday
+    return timedata
+def noncategorical_timedata(timedata):
+    months = timedata["month"]
+    week = timedata["week"]
+    day = timedata["day"]
+    hour = timedata["hour"]
+    minute = timedata["minute"]
+    weekday=timedata["weekday"]
+    NonCatTime = dict()
+    #NonCatTime["sinday"] = np.sin(day/31*2*np.pi)
+    #NonCatTime["cosday"] = np.cos(day/31*2*np.pi)
+    #NonCatTime["sinweekday"] = np.sin(weekday/6*2*np.pi)
+    #NonCatTime["cosweekday"] = np.cos(weekday/6*2*np.pi)
+    #NonCatTime["sinminute"] = np.sin(minute/60*2*np.pi)#werks
+    #NonCatTime["cosminute"] = np.cos(minute/60*2*np.pi)
+    NonCatTime["coshour"] = np.cos(1/23*hour*2*np.pi)#werks
+    NonCatTime["sinhour"] = np.sin(1/23*hour*2*np.pi)
+    #NonCatTime["cosweek"] = np.cos(1/52*week*2*np.pi)
+    #NonCatTime["sinweek"] = np.sin(1/52*week*2*np.pi)
+    #NonCatTime["cosmonth"] = np.cos(1/12*months*2*np.pi)#almostwerks
+    #NonCatTime["sinmonth"] = np.sin(1/12*months*2*np.pi)
+    return NonCatTime
+
+
+
+
+
+
+
+
+
 
 def remove_time_aspect(arrays,start,end):
     tags =(list(arrays.keys()))
     for tag in tags:
-        arrays[tag] =arrays[tag].values[start:end]
+        arrays[tag] =arrays[tag][start:end].values
     return arrays
 
 def extract_indices(mask,kernel,future,arraysize,indices,arrays):
@@ -359,3 +395,53 @@ def n_best_permutations(n,filename):
     perms = np.asarray(permutation)[np.argsort(mse)[:n]]
     mses = np.asarray(mse)[ids]
     return np.vstack((perms,mses))
+
+def differencial_error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical_error,stds,means):
+    indices = extract_indices2(timesteps,future_vision,[],[pdt_original])
+    indices = np.asarray(indices)
+    dataX = np.zeros((len(indices),timesteps,1),dtype=np.float)
+    dataY = np.zeros((len(indices),1),dtype=np.float32)
+    ranger = np.arange(len(indices))
+    extract_samples2(pdt_index,timesteps,indices,dataX,dataY,ranger,pdt_original.squeeze())
+    dataX = dataX[:,-1,pdt_index]
+    dataY = dataY[:,pdt_index]
+    dataY = dataY[(dataY.shape[0]-length):]
+    dataX = dataX[(dataX.shape[0]-length):]
+    copy_last = (np.mean(np.abs(dataY-dataX)))
+    manual_physical = (np.mean(np.abs(dataY-(dataX+k*stds[pdt_index]+means[pdt_index]))))
+    print(manual_physical)
+    if abs(manual_physical-physical_error) < 1e-4:
+        print("error checks out")
+    else:
+        print("error doesn't check out: ", abs(manual_physical-physical_error))
+        print(timesteps," ",future_vision)
+        exit()
+    return dataX, dataY, copy_last, manual_physical
+def error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical_error,stds,means):
+    indices = extract_indices2(timesteps,future_vision,[],[pdt_original])
+    indices = np.asarray(indices)
+    dataX = np.zeros((len(indices),timesteps,1),dtype=np.float)
+    dataY = np.zeros((len(indices),1),dtype=np.float32)
+    ranger = np.arange(len(indices))
+    extract_samples2(pdt_index,timesteps,indices,dataX,dataY,ranger,pdt_original.squeeze())
+    dataX = dataX[:,-1,pdt_index]
+    dataY = dataY[:,pdt_index]
+    dataY = dataY[(dataY.shape[0]-length):]
+    dataX = dataX[(dataX.shape[0]-length):]
+    copy_last = (np.mean(np.abs(dataY-dataX)))
+
+    manual_physical = np.mean(np.abs(dataY-(k*stds[pdt_index]+means[pdt_index])))
+    if abs(manual_physical-physical_error) < 1e-4:
+        print("error checks out")
+    else:
+        print("error doesn't check out: ", abs(manual_physical-physical_error))
+        print(timesteps," ",future_vision)
+        exit()
+    return dataX, dataY, copy_last, manual_physical
+
+
+def make_differential_data(arrays,future_vision,tags):
+    Arrays = np.zeros((len(tags),len(arrays[tags[0]])-future_vision),dtype=np.float32)
+    for i in range(len(tags)):
+        Arrays[i] =  arrays[tags[i]].squeeze()[future_vision:] - arrays[tags[i]].squeeze()[0:-future_vision]
+    return Arrays

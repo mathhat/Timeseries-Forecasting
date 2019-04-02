@@ -6,7 +6,7 @@ import subprocess as sub
 from tools import pickle_load, tags_of_place, remove_time_aspect,load_weather
 
 #import matplotlib.pyplot as plt
-time_interval = 600
+time_interval = 180
 place = "VIK"
 sub.call("mkdir %s_pickles"%place,shell=True)
 path = "/home/josephkn/Documents/Fortum/master/%s_pickles/"%place
@@ -70,11 +70,11 @@ if k: #if we haven't saved the tags of this area, that are active during winter 
 ind = arrays[labeltag].index
 for i in range(len(ind)):
     if ind[i] == FROM:
-        start=i
+        start=ind[i]
         break
 for i in range(len(ind)-1,0,-1):
     if ind[i] == TO:
-        end=i
+        end=ind[i]
         break
 arrays = remove_time_aspect(arrays,start,end)
 
@@ -118,9 +118,7 @@ print(ind)
 #exit()
 g=sns.heatmap(df.corr().abs(),cmap="RdYlGn",xticklabels=1,yticklabels=1)
 plt.show()
-'''
+
 with open('k_best_features_weather_fscore_%d.txt'%time_interval,'w') as f:
     for i in range(k):
         f.write(str(scores[sort[i]])+', '+tags[sort[i]]+'\n')
-
-'''

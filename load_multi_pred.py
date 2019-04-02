@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0,multipred=0,weather=0,time=0):
+def load_perm(time_interval,permutation,place="none",smooth=0,multipred=0,weather=0):
     labeltag = "VIK_PDT2002.vY"
     path = "/home/josephkn/Documents/Fortum/master/pickle5/"
     path2 = "/home/josephkn/Documents/Fortum/master/pickle6/"
@@ -82,7 +82,7 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
 
     #here we define what time of year we're interested in
     FROM = pd.to_datetime('090117') #format is mo da yr ######## here's the date hack
-    TO = pd.to_datetime('040118')
+    TO = pd.to_datetime("040118")
     for tag in tags:
         ind = arrays[tag].index
         init = (FROM-ind[0]).total_seconds()
@@ -95,14 +95,15 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
     ind = arrays[tags[0]].index
     for i in range(len(ind)):
         if ind[i] == FROM:
-            start=i
+            start=ind[i]
             break
     for i in range(len(ind)-1,0,-1):
         if ind[i] == TO:
-            end=i
+            end=ind[i]
             break
 
     #here I remove data outside of the relevant timeframe
+
     arrays = remove_time_aspect(arrays,start,end)
 
     for t in range(len(tags)):
@@ -111,8 +112,9 @@ def load_perm(time_interval,future,kernel_size,permutation,place="none",smooth=0
             pdt_index = t #line below calculates the differenced series
     del ind
 
-    return arrays,tags,pdt_index,tags[pdt_index],permutation
-def load_features(time_interval,future,kernel_size,place,method='f_score',time=0,k=20):
+    return arrays,tags,pdt_index,tags[pdt_index],permutation,start,end
+
+def load_features(time_interval,place,method='f_score',time=0,k=20):
     path = "/home/josephkn/Documents/Fortum/master/"
     time_interval_=time_interval
     if method=='MIR' and time_interval_ < 180:
@@ -146,7 +148,6 @@ def load_features(time_interval,future,kernel_size,place,method='f_score',time=0
             if (len(tags) == k and method!='covar') or (len(tags) == k+1):
                 break
     weather_df = load_weather(time_interval)
-    print(weather_df.columns)
     arrays = dict() #load best features
     for tag in tags[:]:
         if "." in tag:
@@ -158,7 +159,6 @@ def load_features(time_interval,future,kernel_size,place,method='f_score',time=0
         else:
             arrays[tag] = weather_df[tag]
     del weather_df
-    print(arrays.keys())
 
     #here we define what time of year we're interested in
     FROM = pd.to_datetime('090117') #format is mo da yr ######## here's the date hack
@@ -167,11 +167,11 @@ def load_features(time_interval,future,kernel_size,place,method='f_score',time=0
     ind = arrays[tags[0]].index
     for i in range(len(ind)):
         if ind[i] == FROM:
-            start=i
+            start=ind[i]
             break
     for i in range(len(ind)-1,0,-1):
         if ind[i] == TO:
-            end=i
+            end=ind[i]
             break
     arrays = remove_time_aspect(arrays,start,end)
-    return arrays,tags,0,tags[0],'none'
+    return arrays,tags,0,tags[0],'none',start,end

@@ -51,28 +51,29 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             injpiu
     except:
         print('Initializing training of permutation %s'%Permutation)
-    if optimized_features:
-        arrays,tags,pdt_index,pdt_tag,permutation = load_features(time_interval,future_vision,timesteps,place,method,time,k)
+    if optimized_features and multipred:
+        arrays,tags,pdt_index,pdt_tag,permutation,start,end = load_features(time_interval,timesteps,place,method,time,k)
     else:
-        arrays,tags,pdt_index,pdt_tag,permutation = load_perm(time_interval,future_vision,timesteps,Permutation,place,smooth,multipred,weather,time)
-    Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
+        arrays,tags,pdt_index,pdt_tag,permutation,start,end = load_perm(time_interval,Permutation,place,smooth,multipred,weather)
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
     pdt_original = arrays[pdt_tag].copy()
     if differentiate:
         Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
-        for i in range(len(tags)):
-            Arrays[i] =  arrays[tags[i]].squeeze()[1:] - arrays[tags[i]].squeeze()[0:-1]
+        Arrays = make_differential_data(arrays,future_vision,tags)
     else:
         Arrays = np.zeros((len(tags),len(arrays[tags[0]])),dtype=np.float32)
         for i in range(len(tags)):
             Arrays[i] =  arrays[tags[i]].squeeze()
     del arrays
-
     #here we create non-categorical time data
-    if multipred and time:
-        sin,cos = create_time_variables(start,end,time_interval)
-        Arrays = np.vstack((Arrays,sin[:-1]))
-        Arrays = np.vstack((Arrays,cos[:-1]))
+    if time:
+        timedata = create_time_variables(start,end,time_interval)
+        noncat = noncategorical_timedata(timedata)
+        for key in noncat.keys():
+            if differentiate:
+                Arrays = np.vstack((Arrays,noncat[key][:-1]))
+            else:
+                Arrays = np.vstack((Arrays,noncat[key]))
 
     dims = list(range(Arrays.shape[0]))
     intercepts=[]
@@ -86,14 +87,16 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         Arrays[i] /= std
         means.append(mean)
         stds.append(std)
-
     indices = extract_indices2(timesteps,future_vision,[],Arrays)
     indices = np.asarray(indices)
     ranger = np.arange(len(indices))
     datax = np.zeros((len(indices),timesteps,Arrays.shape[0]),dtype=np.float)
     datay = np.zeros((len(indices),Arrays.shape[0]),dtype=np.float32)
+    #check = Arrays[0].copy()
+    #print(check.shape)
     X = [extract_samples2(x,timesteps,indices,datax,datay,ranger,Arrays[x]) for x in dims]
-    del X,Arrays,indices,ranger
+
+    del X,Arrays,ranger,indices
 
     test_cursor = int((1-test_percentage/100)*datax.shape[0]) #where to split the data
 
@@ -108,22 +111,22 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     model = tf.keras.Sequential()
     model.add(tf.keras.layers.CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
                                         ,input_shape=datax.shape[1:],
-                                        return_sequences=False,
-                                        kernel_regularizer=tf.keras.regularizers.l2(0.001)))
+                                        return_sequences=False))#,
+                                        #kernel_regularizer=tf.keras.regularizers.l2(0.001)))
 
     model.add(tf.keras.layers.Dense(nodes2,kernel_initializer='glorot_normal',
-                                    activation=activation,
-                                    kernel_regularizer=tf.keras.regularizers.l2(0.001)))
+                                    activation=activation))#,
+                                    #kernel_regularizer=tf.keras.regularizers.l2(0.001)))
 
     if multipred:
         model.add(tf.keras.layers.Dense(datay.shape[-1],
-                                        kernel_initializer='glorot_normal',
-                                        kernel_regularizer=tf.keras.regularizers.l2(0.001),
-                                        activation='linear'))
+                                        kernel_initializer='glorot_normal',activation='linear'))#,
+                                        #kernel_regularizer=tf.keras.regularizers.l2(0.001),
+                                        #activation='linear'))
     else:
-        model.add(tf.keras.layers.Dense(1,kernel_initializer='glorot_normal',
-                                        kernel_regularizer=tf.keras.regularizers.l2(0.001),
-                                        activation='linear'))
+        model.add(tf.keras.layers.Dense(1,kernel_initializer='glorot_normal',activation='linear'))#,
+                                        #kernel_regularizer=tf.keras.regularizers.l2(0.001),
+                                        #activation='linear'))
 
     model.compile(loss='mean_squared_error', optimizer= 'adam',metrics=['mse','mae'])
     if multipred:
@@ -166,7 +169,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         print(model.metrics_names)
         mse,mae = scores[1:]
         k = model.predict(testx).squeeze() #predicted y
-        copy_last = np.mean((testy[1:].squeeze()-testy[0:-1].squeeze())**2)
+        copy_last = np.mean(np.abs(testy.squeeze()-testx[:,-1].squeeze()))*stds[pdt_index]
         errors = (k-testy.squeeze())
 
         abserrors = abs(errors)
@@ -186,17 +189,37 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     if save_bench and multipred==0:
         k = model.predict(testx).squeeze() #predicted testy
         #print(np.mean(abs(k-testy)), 'model abs error')
-        copy_last = np.mean((testy[1:]-testy[0:-1])**2)
-        errors = (k-testy.squeeze())
+        errors = (testy.squeeze()-k)
         error_sort = np.sort(abs(errors))
-        median = np.median(error_sort)
         mse,mae = scores[1:]
-        physical_error = abs(errors).mean()*stds[pdt_index]
+        physical_errors = (np.abs(errors)*stds[pdt_index]) #shortcut
+        physical_error = physical_errors.mean()
+        median = np.median(np.sort(physical_errors))
         print(physical_error)
-        #check = k*stds[pdt_index] + means[pdt_index]
-        #print(check.shape,pdt_original[test_cursor:].shape)
-        #check = np.abs(check-pdt_original[(timesteps+test_cursor):].squeeze()).mean()
-        with open('bench_uni_lstm_dense2/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
+        if differentiate:
+            dataX, dataY, copy_last, manual_physical= differencial_error_check(
+                testy.shape[0],timesteps,
+                future_vision,pdt_original,
+                pdt_index,k,physical_error,
+                stds,means)
+        else:
+            dataX, dataY, copy_last, manual_physical = error_check(
+                testy.shape[0],timesteps,
+                future_vision,pdt_original,
+                pdt_index,k,physical_error,
+                stds,means)
+        '''
+        plt.plot(dataX,label="x")
+        plt.plot(dataY,label="y")
+        plt.show()
+        '''
+        print(physical_error, " physical error (shortcut)")
+        print(manual_physical, " physical error (manual)")
+        print(copy_last, " copy last step error")
+        dir = "alternative_bench/lstm_dense"
+        if activation == "sigmoid":
+            dir+="2"
+        with open(dir+'/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
             f.write('%f %f %f %f %d %d %d %s %d %d\n'% (physical_error,mse,median,copy_last,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:
