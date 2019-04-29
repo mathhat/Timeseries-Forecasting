@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from cross_validate2 import crosslstm
+from multi_lstm_bench import lstm_multi
 import sys
 sys.path.insert(0,'../')
 from linear_regression import linear_results
@@ -155,15 +156,23 @@ def crosslstmd(activation="relu"):
     plt.show()
     '''
     return cp, time, best,results
+print("lstm + sigmoid")
 cp, time, bestlstmdsig,resultsig = crosslstmd(activation="sigmoid")
+print("lstm + sigmoid")
 cp, time, bestlstmdrelu,resultrel = crosslstmd(activation="relu")
+print("lstm ")
+tt,lstmmulti =lstm_multi()
 time2, bestlstm,result = crosslstm()
+lin,time3,cps,t = linear_results()
+plt.title("Univariate")
 plt.plot(time,cp,"k-o",label="copy_last")
 plt.plot(time,bestlstmdrelu,"c-*",label="LSTM relu")
 plt.plot(time,bestlstmdsig,"b-s",label="LSTM sig")
 plt.plot(time2,bestlstm,"r-^",label="LSTM")
-print("wot")
-lin,time3,cps,t = linear_results()
 plt.plot(time3,lin,"m-o",label="linear regression")
+plt.xlabel("N Minutes into Future")
+
+plt.plot(tt,lstmmulti,"r->",label="LSTM multivariate")
+
 plt.legend()
 plt.show()

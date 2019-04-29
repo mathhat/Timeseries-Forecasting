@@ -6,48 +6,61 @@ from tools import pickle_load, tags_of_place, remove_time_aspect,load_weather
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import chi2
 from sklearn.feature_selection import f_regression,mutual_info_regression
+
 #import matplotlib.pyplot as plt
-time_interval = 600
 place = "VIK"
-sub.call("mkdir %s_pickles"%place,shell=True)
-path = "/home/josephkn/Documents/Fortum/master/%s_pickles/"%place
-path2 = "/home/josephkn/Documents/Fortum/master/pickle6/"
-df = pickle_load(path2+place+'6.pickle')
-grp = df.groupby('tag',sort=False, as_index=False)
+path = "/home/josephkn/Documents/Fortum/master/%s_pickles2/"%place
+#df = pickle_load(path2+place+'6.pickle')
+#grp = df.groupby('tag',sort=False, as_index=False)
 arrays = dict()
 tags=[]
-del df
+#del df
 k=0
+time_interval = 120
 try:
     with open(path+"tags_winter.txt",'r') as f:
+        count = 0
+        j=0
         for line in f:
-            tags.append(line[:-1])
+            line= line[:-1]
+            tags.append(line)
+            count+=1
+            if count==25: #set number to 25 if you only wanna see correlation of special tags with pdt2002
+                j=100
+                line='VIK_PDT2002.vY'
+            df = pickle_load(path+line+".pickle")
 
+            try:
+                df=df.resample('%ds'%time_interval).fillna(method='ffill')
+            except:
+                j+=1
+                df=df.resample('%ds'%time_interval).mean().fillna(method='ffill').fillna(method='bfill')
+            arrays[line]=df
+            if j==100:
+                break
+        print(arrays.keys())
 except:
-    tags = list(tags_of_place(df))
+    print('k')
+    with open(path+"tags.txt",'r') as f:
+        j = 0
+        tags= []
+        for line in f:
+            line=line[:-1]
+            tags.append(line)
+            df = pickle_load(path+line+".pickle")
+            try:
+                df=df.resample('%ds'%time_interval).fillna(method='ffill')
+            except:
+                j+=1
+                df=df.resample('%ds'%time_interval).mean().fillna(method='ffill').fillna(method='bfill')
+            arrays[line]=df
     k=1
 
-
-for tag,slicee in grp:
-    slicee = slicee.drop(columns=['tag'])
-    slicee['Date'] = pd.to_datetime(slicee['Date'])
-    slicee = slicee.set_index('Date')
-    slicee = slicee.sort_index()
-    slicee=slicee.resample('%ds'%time_interval).fillna(method='ffill')
-    arrays[tag] = slicee
-weather_df = load_weather(time_interval)
-keys =  list(weather_df.keys())
-for key in keys:
-    arrays[key] = weather_df[key]
-    tags.append(key)
-n_units = len(tags)
-del weather_df
 #here we define what time of year we're interested in
-FROM = pd.to_datetime('090117') #format is mo da yr ######## here's the date hack
-TO = pd.to_datetime('040118')
+FROM = pd.to_datetime('120117') #format is mo da yr ######## here's the date hack
+TO = pd.to_datetime('020118')
 labeltag = "VIK_PDT2002.vY"
-
-
+tags = list(arrays.keys())
 if k: #if we haven't saved the tags of this area, that are active during winter too
     for tag in tags[::-1]:
         ind = arrays[tag].index
@@ -70,10 +83,8 @@ for i in range(len(ind)-1,0,-1):
     if ind[i] == TO:
         end=ind[i]
         break
-arrays = remove_time_aspect(arrays,start,end)
-arrays["wind_dir1"]=np.sin(arrays["wind_dir"])
-arrays["wind_dir2"]=np.cos(arrays["wind_dir"])
 
+arrays = remove_time_aspect(arrays,start,end)
 labels = arrays[labeltag]
 labels = ((labels[1:].copy().squeeze()-labels.mean()) /labels.std()).astype(np.float32)
 n_samples = len(labels)
@@ -86,7 +97,7 @@ for tag in tags:
 del arrays
 print(Arrays.shape,labels.shape)
 print(Arrays.dtype,labels.dtype)
-k = 100
+k = len(tags)
 test = SelectKBest(score_func=mutual_info_regression,k=k)
 fit = test.fit(Arrays, labels)
 scores = fit.scores_
@@ -98,7 +109,7 @@ print(sort)
 print(scores[sort[0]])
 print(tags[sort[0]])
 
-with open('k_best_features_weather_MIR_%d.txt'%time_interval,'w') as f:
+with open('k_best_special_features_weather_MIR_%d.txt'%time_interval,'w') as f:
     for i in range(k):
         f.write(str(scores[sort[i]])+', '+tags[sort[i]]+'\n')
 #print(scores[sort[-1]])

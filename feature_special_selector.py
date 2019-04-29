@@ -1,4 +1,3 @@
-#this script takes a pickled dataframe and pickles each dataframe within the dataframe
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,48 +5,53 @@ import subprocess as sub
 from tools import pickle_load, tags_of_place, remove_time_aspect,load_weather
 
 #import matplotlib.pyplot as plt
-time_interval = 120
+time_interval = 60
 place = "VIK"
-sub.call("mkdir %s_pickles"%place,shell=True)
-path = "/home/josephkn/Documents/Fortum/master/%s_pickles/"%place
-path2 = "/home/josephkn/Documents/Fortum/master/pickle6/"
-df = pickle_load(path2+place+'6.pickle')
-grp = df.groupby('tag',sort=False, as_index=False)
+path = "/home/josephkn/Documents/Fortum/master/%s_pickles2/"%place
+#df = pickle_load(path2+place+'6.pickle')
+#grp = df.groupby('tag',sort=False, as_index=False)
 arrays = dict()
 tags=[]
-del df
+#del df
 k=0
+
 try:
     with open(path+"tags_winter.txt",'r') as f:
+        count = 0
+        j=0
         for line in f:
+            line= line[:-1]
             tags.append(line[:-1])
+            count+=1
+            if count==25:
+                j=100
+                line='VIK_PDT2002.vY'
+            df = pickle_load(path+line+".pickle")
 
+            try:
+                df=df.resample('%ds'%time_interval).fillna(method='ffill')
+            except:
+                j+=1
+                df=df.resample('%ds'%time_interval).mean().fillna(method='ffill').fillna(method='bfill')
+            arrays[line]=df
+            if j==100:
+                break
 except:
     print('k')
-    tags = list(tags_of_place(df))
+    with open(path+"tags.txt",'r') as f:
+        j = 0
+        for line in f:
+            line=line[:-1]
+            tags.append(line)
+            df = pickle_load(path+line+".pickle")
+            try:
+                df=df.resample('%ds'%time_interval).fillna(method='ffill')
+            except:
+                j+=1
+                df=df.resample('%ds'%time_interval).mean().fillna(method='ffill').fillna(method='bfill')
+            arrays[line]=df
     k=1
-for tag,slicee in grp:
-    slicee = slicee.drop(columns=['tag'])
-    slicee['Date'] = pd.to_datetime(slicee['Date'])
-    slicee = slicee.set_index('Date')
-    slicee = slicee.sort_index()
-    slicee=slicee.resample('%ds'%time_interval).fillna(method='ffill')
-    if k==0:
-        if tag in tags:
-            arrays[tag] = slicee
-        else:
-            continue
-    else:
-        arrays[tag] = slicee
 
-weather_df = load_weather(time_interval)
-keys =  list(weather_df.keys())
-for key in keys:
-    arrays[key] = weather_df[key]
-    tags.append(key)
-n_units = len(tags)
-print(len(tags))
-del weather_df
 #here we define what time of year we're interested in
 FROM = pd.to_datetime('090117') #format is mo da yr ######## here's the date hack
 TO = pd.to_datetime('040118')
@@ -76,10 +80,19 @@ for i in range(len(ind)-1,0,-1):
     if ind[i] == TO:
         end=ind[i]
         break
+weather_df = load_weather(time_interval)
+keys =  list(weather_df.keys())
+for key in keys:
+    arrays[key] = weather_df[key]
+    tags.append(key)
+n_units = len(tags)
+print(len(tags))
+del weather_df
 arrays = remove_time_aspect(arrays,start,end)
-
+arrays["wind_dir1"]=np.sin(arrays["wind_dir"])
+arrays["wind_dir2"]=np.cos(arrays["wind_dir"])
 labels = arrays[labeltag]
-labels = (labels[1:].copy().squeeze()-labels.mean() /labels.std())
+labels = (labels[1:].copy().squeeze()-labels.mean()) /labels.std()
 n_samples = len(labels)
 n_features = len(tags)
 #Arrays = np.zeros((n_samples,n_features),dtype=np.float64)
@@ -102,7 +115,7 @@ print(df.info())
 corrmat = df.corr().abs().values
 print(corrmat.shape)
 args = np.argsort(corrmat[tags2.index("labels")])
-with open('k_best_features_covar_%d.txt'%time_interval,'w') as f:
+with open('k_best_special_features_covar_%d.txt'%time_interval,'w') as f:
     for arg in args[::-1]:
         print(tags[arg])
         f.write(str(corrmat[tags2.index("labels"),arg])+', '+tags[arg]+'\n')
@@ -116,7 +129,7 @@ import seaborn as sns
 ind=tags2.index("PDT2002")
 print(ind)
 #exit()
-g=sns.heatmap(df.corr().abs(),cmap="RdYlGn",xticklabels=1,yticklabels=1)
+g=sns.heatmap(df.corr().abs(),cmap="RdYlGn")#,xticklabels=1,yticklabels=1)
 plt.show()
 
 with open('k_best_features_weather_fscore_%d.txt'%time_interval,'w') as f:

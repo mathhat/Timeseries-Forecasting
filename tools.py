@@ -247,26 +247,50 @@ def noncategorical_timedata(timedata):
     hour = timedata["hour"]
     minute = timedata["minute"]
     weekday=timedata["weekday"]
+    hour += minute/max(minute)
+    weekday += hour/max(hour)
+    day += hour/max(hour)
+    week += weekday/max(weekday)
+
     NonCatTime = dict()
-    #NonCatTime["sinday"] = np.sin(day/31*2*np.pi)
-    #NonCatTime["cosday"] = np.cos(day/31*2*np.pi)
-    #NonCatTime["sinweekday"] = np.sin(weekday/6*2*np.pi)
-    #NonCatTime["cosweekday"] = np.cos(weekday/6*2*np.pi)
-    #NonCatTime["sinminute"] = np.sin(minute/60*2*np.pi)#werks
-    #NonCatTime["cosminute"] = np.cos(minute/60*2*np.pi)
-    NonCatTime["coshour"] = np.cos(1/23*hour*2*np.pi)#werks
-    NonCatTime["sinhour"] = np.sin(1/23*hour*2*np.pi)
+    dayperiod = day/32*2*np.pi #period of month
+    minperiod = minute/60*2*np.pi #period of hour
+    hourperiod = 1/24*hour*2*np.pi #period of day
+    weekdayperiod = weekday/7*2*np.pi #period of week
+    weekperiod = 1/52*week*2*np.pi #period of year
+    #NonCatTime["sinday"] = np.sin(dayperiod)
+    #NonCatTime["cosday"] = np.cos(dayperiod)
+    #NonCatTime["sinweekday"] = np.sin(weekdayperiod) #actually werks
+    #NonCatTime["cosweekday"] = np.cos(weekdayperiod)
+    #NonCatTime["sinminute"] = np.sin(minperiod)#werks
+    NonCatTime["cosminute"] = np.cos(minperiod)
+    #NonCatTime["coshour"] = np.cos(hourperiod)#werks
+    #NonCatTime["sinhour"] = np.sin(hourperiod)
     #NonCatTime["cosweek"] = np.cos(1/52*week*2*np.pi)
     #NonCatTime["sinweek"] = np.sin(1/52*week*2*np.pi)
-    #NonCatTime["cosmonth"] = np.cos(1/12*months*2*np.pi)#almostwerks
-    #NonCatTime["sinmonth"] = np.sin(1/12*months*2*np.pi)
     return NonCatTime
-
-
-
-
-
-
+def onehot_creator(array):
+    if len(array.shape) > 1:
+        print("error in def onehot(array) in tools.py")
+        exit()
+    unique = array.unique()
+    unique = sorted(unique)
+    onehot = (unique == array[:,None])
+    return onehot
+def categorical_timedata(timedata,keys):
+    #months = timedata["month"]
+    #week = timedata["week"]
+    #day = timedata["day"]
+    #hour = timedata["hour"]
+    #minute = timedata["minute"]
+    #weekday=timedata["weekday"]
+    onehot = 0
+    for key in keys:
+        if isinstance(onehot,int):
+            onehot = onehot_creator(timedata[key])
+        else:
+            onehot = np.concatenate((onehot,onehot_creator(timedata[key])),axis=1)
+    return onehot.astype(np.float64)
 
 
 
@@ -396,15 +420,18 @@ def n_best_permutations(n,filename):
     mses = np.asarray(mse)[ids]
     return np.vstack((perms,mses))
 
-def differencial_error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical_error,stds,means):
+def differencial_error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical_error,stds,means,dims):
     indices = extract_indices2(timesteps,future_vision,[],[pdt_original])
     indices = np.asarray(indices)
-    dataX = np.zeros((len(indices),timesteps,1),dtype=np.float)
-    dataY = np.zeros((len(indices),1),dtype=np.float32)
+    dataX = np.zeros((len(indices),timesteps,len(dims)),dtype=np.float)
+    dataY = np.zeros((len(indices),len(dims)),dtype=np.float32)
     ranger = np.arange(len(indices))
+    print("what")
     extract_samples2(pdt_index,timesteps,indices,dataX,dataY,ranger,pdt_original.squeeze())
     dataX = dataX[:,-1,pdt_index]
     dataY = dataY[:,pdt_index]
+    dataY = dataY.squeeze()
+    print(dataX.shape,dataY.shape)
     dataY = dataY[(dataY.shape[0]-length):]
     dataX = dataX[(dataX.shape[0]-length):]
     copy_last = (np.mean(np.abs(dataY-dataX)))
@@ -417,19 +444,19 @@ def differencial_error_check(length,timesteps,future_vision,pdt_original,pdt_ind
         print(timesteps," ",future_vision)
         exit()
     return dataX, dataY, copy_last, manual_physical
-def error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical_error,stds,means):
+def error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical_error,stds,means,dims):
     indices = extract_indices2(timesteps,future_vision,[],[pdt_original])
     indices = np.asarray(indices)
-    dataX = np.zeros((len(indices),timesteps,1),dtype=np.float)
-    dataY = np.zeros((len(indices),1),dtype=np.float32)
+    dataX = np.zeros((len(indices),timesteps,len(dims)),dtype=np.float)
+    dataY = np.zeros((len(indices),len(dims)),dtype=np.float32)
     ranger = np.arange(len(indices))
     extract_samples2(pdt_index,timesteps,indices,dataX,dataY,ranger,pdt_original.squeeze())
     dataX = dataX[:,-1,pdt_index]
     dataY = dataY[:,pdt_index]
+    dataY = dataY.squeeze()
     dataY = dataY[(dataY.shape[0]-length):]
     dataX = dataX[(dataX.shape[0]-length):]
     copy_last = (np.mean(np.abs(dataY-dataX)))
-
     manual_physical = np.mean(np.abs(dataY-(k*stds[pdt_index]+means[pdt_index])))
     if abs(manual_physical-physical_error) < 1e-4:
         print("error checks out")
@@ -444,4 +471,12 @@ def make_differential_data(arrays,future_vision,tags):
     Arrays = np.zeros((len(tags),len(arrays[tags[0]])-future_vision),dtype=np.float32)
     for i in range(len(tags)):
         Arrays[i] =  arrays[tags[i]].squeeze()[future_vision:] - arrays[tags[i]].squeeze()[0:-future_vision]
+    return Arrays
+
+def make_differential_data2(arrays,future_vision,tags):
+    Arrays = np.zeros((2*len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
+    for i in range(len(tags)):
+        Arrays[i] =  arrays[tags[i]].squeeze()[:-1]
+    for i in range(len(tags),2*len(tags)):
+        Arrays[i] =  arrays[tags[i-len(tags)]].squeeze()[1:] - arrays[tags[i-len(tags)]].squeeze()[0:-1]
     return Arrays

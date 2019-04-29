@@ -73,7 +73,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
     pdt_original = arrays[pdt_tag].copy()
     if differentiate:
-        Arrays = make_differential_data(arrays,future_vision,tags)
+        Arrays = make_differential_data2(arrays,future_vision,tags)
     else:
         Arrays = np.zeros((len(tags),len(arrays[tags[0]])),dtype=np.float32)
         for i in range(len(tags)):
@@ -97,7 +97,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             noncat = noncategorical_timedata(timedata)
             for key in noncat.keys():
                 if differentiate:
-                    Arrays = np.vstack((Arrays,noncat[key][:-future_vision]))
+                    Arrays = np.vstack((Arrays,noncat[key][:-(future_vision+1)]))
                 else:
                     Arrays = np.vstack((Arrays,noncat[key]))
         else:
@@ -124,7 +124,9 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     X = [extract_samples2(x,timesteps,indices,datax,datay,ranger,Arrays[x]) for x in dims]
 
     del X,Arrays,ranger,indices
-
+    plt.plot(datax[:,-1,pdt_index+len(tags)])
+    plt.show()
+    exit()
     test_cursor = int((1-test_percentage/100)*datax.shape[0]) #where to split the data
     print(test_cursor)
     testx = datax[test_cursor:].copy()#+timesteps:]
@@ -229,18 +231,20 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         error_sort = np.sort(abserrors)
         median = np.median(error_sort)*stds[pdt_index]
         physical_error = abserrors.mean()*stds[pdt_index]
+        '''
         if differentiate:
             dataX, dataY, copy_last, manual_physical= differencial_error_check(
                 testy.shape[0],timesteps,
                 future_vision,pdt_original,
                 pdt_index,kk,physical_error,
                 stds,means,dims)
-        else:
-            dataX, dataY, copy_last, manual_physical = error_check(
-                testy.shape[0],timesteps,
-                future_vision,pdt_original,
-                pdt_index,kk,physical_error,
-                stds,means,dims)
+        '''
+        #else:
+        dataX, dataY, copy_last, manual_physical = error_check(
+            testy.shape[0],timesteps,
+            future_vision,pdt_original,
+            pdt_index,kk,physical_error,
+            stds,means,dims)
         print(stds[pdt_index],'std')
         print(abs(errors).mean(),'mae')
         print(median,'median abs')
