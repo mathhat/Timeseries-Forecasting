@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.layers import Concatenate, Input, CuDNNLSTM,Dense,Dropout,Embedding, Flatten
 from tensorflow.keras.models import Model, Sequential
+import keras.backend as K
 np.random.seed(0)
 '''
 timesteps = how many time increments to feed into the model
@@ -139,15 +140,19 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         cat_test = cat[(future_vision+timesteps+test_cursor-1):]
         catx = cat[:test_cursor]
     input1 = Input(shape=(datax.shape[1:]))
-    lstm = CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
-                                        ,input_shape=datax.shape[1:],
-                                        return_sequences=False)(input1)
+    print(datax.shape[1:])
+    #lstm = CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
+    #                                    ,input_shape=datax.shape[1:],
+    #                                    return_sequences=True)(input1)
 
     #if activation != "None": #univariate shit
     #    dropout = Dense(nodes1,kernel_initializer='glorot_normal',
     #                        activation=activation)(dropout)
-
-    dropout = Dropout(0.25)(lstm)
+    #dropout = Dropout(0.25)(lstm)
+    #dropout = CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
+    #                                    ,input_shape=datax.shape[1:],
+    #                                    return_sequences=False)(dropout)
+    #dropout = Dropout(0.25)(dropout)
 
     if categorical or holiday:
         input2 = Input(shape=(cat.shape[-1],))
@@ -155,19 +160,20 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
 
         embeddingflat = Flatten()(embedding)
 
-        embed_dense = Dense(32,kernel_initializer='glorot_normal',
+        embed_dense = Dense(datax.shape[1:],kernel_initializer='glorot_normal',
                             activation=activation)(embeddingflat)
-        marge = Concatenate()([dropout,embed_dense])
+        marge = Concatenate()([lstm,embed_dense])
+
+        lstm = CuDNNLSTM(nodes1,kernel_initializer='glorot_normal'
+                                            ,input_shape=datax.shape[1:],
+                                            return_sequences=False,stateful=True)(marge)
+        #model.layers[1].states[0] = hidden_states
+        #model.layers[1].states[1] = cell_states
+
         dropout = Dropout(0.25)(marge)
         outputs = Dense(1,kernel_initializer='glorot_normal',
                             activation='linear')(dropout)
         model = Model(inputs=[input1,input2],outputs=outputs)
-        '''embed_dense = Dropout(0.25)(embed_dense) #remove
-        marge = Concatenate()([dropout,embed_dense])
-        #dropout = Dropout(0.25)(marge) #uncomment
-        outputs = Dense(1,kernel_initializer='glorot_normal',
-                            activation='linear')(marge) #(dropout)
-        model = Model(inputs=[input1,input2],outputs=outputs)'''
 
     else:
         outputs = Dense(1,kernel_initializer='glorot_normal',

@@ -435,6 +435,7 @@ def differencial_error_check(length,timesteps,future_vision,pdt_original,pdt_ind
     dataY = dataY[(dataY.shape[0]-length):]
     dataX = dataX[(dataX.shape[0]-length):]
     copy_last = (np.mean(np.abs(dataY-dataX)))
+
     manual_physical = (np.mean(np.abs(dataY-(dataX+k*stds[pdt_index]+means[pdt_index]))))
     print(manual_physical)
     if abs(manual_physical-physical_error) < 1e-4:
@@ -457,6 +458,9 @@ def error_check(length,timesteps,future_vision,pdt_original,pdt_index,k,physical
     dataY = dataY[(dataY.shape[0]-length):]
     dataX = dataX[(dataX.shape[0]-length):]
     copy_last = (np.mean(np.abs(dataY-dataX)))
+    #with open('mediancopy.txt','a')as f:
+    #    f.write("%f \n" % np.median(np.abs(dataY-dataX)))
+    #print("swag")
     manual_physical = np.mean(np.abs(dataY-(k*stds[pdt_index]+means[pdt_index])))
     if abs(manual_physical-physical_error) < 1e-4:
         print("error checks out")

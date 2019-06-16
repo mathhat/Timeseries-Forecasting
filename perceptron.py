@@ -47,7 +47,6 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
             injpiu
     except:
         print('Initializing training of permutation %s'%Permutation)
-
     arrays,tags,pdt_index,pdt_tag,permutation,start,end = load_perm(time_interval,Permutation,place,smooth,multipred,weather)
     Arrays = np.zeros((len(tags),len(arrays[tags[0]])-1),dtype=np.float32)
     ##FIND OUT WHERE TO DIFFERENTIATE AND SCALE
@@ -119,17 +118,13 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
                                         kernel_regularizer=tf.keras.regularizers.l2(0.001),
                                         activation='linear'))
 
-    model.compile(loss='mean_squared_error', optimizer= 'adam')
-    if multipred:
-        history = model.fit(datax, datay, validation_split=validation_percentage/100,
-                            epochs=epochs, batch_size=batch_size, verbose=1,shuffle=0,
-                            callbacks=[tf.keras.callbacks.EarlyStopping(patience=patience)])#,validation_data=(X_valid, y_valid))
-        scores = model.evaluate(testx, testy, verbose=0)
-    else:
-        history = model.fit(datax.squeeze(), datay[:,pdt_index], validation_split=validation_percentage/100,
-                            epochs=epochs, batch_size=batch_size, verbose=1,shuffle=0,
-                            callbacks=[tf.keras.callbacks.EarlyStopping(patience=patience)])
-        scores = model.evaluate(testx.squeeze(), testy[:,pdt_index], verbose=0)
+    model.compile(loss='mean_squared_error', optimizer= 'adam',metrics=['mse','mae'])
+    print(pdt_index)
+
+    history = model.fit(datax.squeeze(), datay[:,pdt_index], validation_split=validation_percentage/100,
+                        epochs=epochs, batch_size=batch_size, verbose=1,shuffle=0,
+                        callbacks=[tf.keras.callbacks.EarlyStopping(patience=patience)])
+    scores = model.evaluate(testx.squeeze(), testy[:,pdt_index], verbose=0)
 
     print('average mse:', scores)
     if savemod:
@@ -152,25 +147,25 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         with open('bench_place_sparse/benchmarks_%s_%dinterval_%dsteps_multipred.txt'%(place,time_interval,timesteps),'a')as f:
             f.write('%f %d %d %d %s %d %d %d\n'% (scores,patience,nodes1,timesteps,
                                             permutation[:-1],future_vision,weather,time))
-
+    '''
     if save_bench and multipred==0:
         k = model.predict(testx.squeeze()).squeeze() #predicted testy
         #successful reconstruction
-        '''
-        if differentiate:
-            reconstructed_output = pdt_original[(test_cursor+timesteps):-1].squeeze()+k*stds[pdt_index]
-            print(np.mean(abs(testy[1:]-testy[0:-1])), 'copy last step abs error')
-            plt.plot(reconstructed_output,label='model')
-            plt.plot(pdt_original[(test_cursor+timesteps+1):])
-            plt.legend()
-            plt.show()
-        else:
-            plt.plot(pdt_original[(test_cursor+timesteps+1):])
-            plt.plot(k*stds[pdt_index]+means[pdt_index],label='model')
-            plt.legend()
-            plt.show()
-            print(abs(pdt_original[(test_cursor+timesteps+1):]-(k*stds[pdt_index]+means[pdt_index])).mean())
-        '''
+
+        #if differentiate:
+        #    reconstructed_output = pdt_original[(test_cursor+timesteps):-1].squeeze()+k*stds[pdt_index]
+        #    print(np.mean(abs(testy[1:]-testy[0:-1])), 'copy last step abs error')
+        #    plt.plot(reconstructed_output,label='model')
+        #    plt.plot(pdt_original[(test_cursor+timesteps+1):])
+        #    plt.legend()
+        #    plt.show()
+        #else:
+        #    plt.plot(pdt_original[(test_cursor+timesteps+1):])
+        #    plt.plot(k*stds[pdt_index]+means[pdt_index],label='model')
+        #    plt.legend()
+        #    plt.show()
+        #    print(abs(pdt_original[(test_cursor+timesteps+1):]-(k*stds[pdt_index]+means[pdt_index])).mean())
+
 
         errors = (k-testy.squeeze())
         physical_error = abs(errors).mean()*stds[pdt_index]
@@ -181,7 +176,42 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         if activation == "sigmoid":
             dir+="2"
         with open(dir+'/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
-            f.write('%f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
+            f.write('%f %f %f %d %d %d %s %d %d\n'% (physical_error,scores,median,patience,nodes1,timesteps,Permutation,future_vision,differentiate))'''
+    if save_bench and multipred==0:
+        #print(np.mean(abs(k-testy)), 'model abs error')
+        kk = model.predict(testx.squeeze()).squeeze()
+        errors = (testy.squeeze()-kk)
+        error_sort = np.sort(abs(errors))
+        mse,mae = scores[1:]
+        physical_errors = (np.abs(errors)*stds[pdt_index]) #shortcut
+        physical_error = physical_errors.mean()
+        median = np.median(np.sort(physical_errors))
+        print(physical_error)
+        if differentiate:
+            dataX, dataY, copy_last, manual_physical= differencial_error_check(
+                testy.shape[0],timesteps,
+                future_vision,pdt_original,
+                pdt_index,kk,physical_error,
+                stds,means,dims)
+        else:
+            dataX, dataY, copy_last, manual_physical = error_check(
+                testy.shape[0],timesteps,
+                future_vision,pdt_original,
+                pdt_index,kk,physical_error,
+                stds,means,dims)
+        '''
+        plt.plot(dataX,label="x")
+        plt.plot(dataY,label="y")
+        plt.show()
+        '''
+        print(physical_error, " physical error (shortcut)")
+        print(manual_physical, " physical error (manual)")
+        print(copy_last, " copy last step error")
+        dir = "alternative_bench/percept"
+        if activation == "sigmoid":
+            dir+="2"
+        with open(dir+'/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
+            f.write('%f %f %f %f %d %d %d %s %d %d\n'% (physical_error,mse,median,copy_last,patience,nodes1,timesteps,Permutation,future_vision,differentiate))
 
     if save_img:
         plt.plot(history.history['loss'])

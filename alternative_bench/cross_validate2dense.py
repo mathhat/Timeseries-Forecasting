@@ -158,7 +158,7 @@ def crosslstmd(activation="relu"):
     return cp, time, best,results
 print("lstm + sigmoid")
 cp, time, bestlstmdsig,resultsig = crosslstmd(activation="sigmoid")
-print("lstm + sigmoid")
+print("lstm + relu")
 cp, time, bestlstmdrelu,resultrel = crosslstmd(activation="relu")
 print("lstm ")
 tt,lstmmulti =lstm_multi()

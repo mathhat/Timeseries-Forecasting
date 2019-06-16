@@ -7,14 +7,14 @@ optimized_features = 1 #wanna choose features based on a linear or mutual inform
 
 method = "covar" #which method? "MIR", "covar", "f_score"
 how_many = 10 #how many features would you like?
-special = 0 #want special features?
-n_special = 5 #how many?
+special = 1 #want special features?
+n_special = 2 #how many?
 if optimized_features==0:#incase you retrded
     special=0
 multipred=1 #wanna look at lotsa features, or just PDT?
 placepred = 1 #wanna do place based, or special subset of sensors?
 place = 'VIK' #if you wanna do place based, which place?
-differentiate = 1
+differentiate = 0
 '''
 places = []
 file = open('/home/josephkn/Documents/Fortum/master/weatherdata/area_codes.txt','r')
@@ -23,38 +23,51 @@ for line in file:
     places.append(p)
 places = places[:-1]
 '''
-timesteps = 20; future = 10; time_interval = 60
+timesteps = 20; future = 3; time_interval = 60
 activation = 'relu'; epochs=10; nodes=128;batch_size=64;
 weather = 1 #multipred and optimized feats must also be true for weatherdata to be used in model
-time = 0
-categorical = 0 #
-keys = ["weekday"] #which categories of time do you want to add
+time = 1
+categorical = 1#
+keys = ["weekday","month","day"] #which categories of time do you want to add
 holiday = 1 #adding holidays to your categorical time data
 if categorical ==0:
     holiday=0 #in case you messed up
-runs = 5
+runs = 5#doesnt do anything
 if place!='none':
     permutation = 'none'
+
 ii = 0
+for n_special in [1,2,3,4,5,6]:
+    for keys in [["weekday","month","day","minute"]]:#,["weekday"],["month"],["day"],["weekday","month","day","minute"],["day","minute"]]:
+        for how_many in [10]:
+            for method in ["covar"]:
+                for future in [2,3,6,10,15,20,25,30,35,40]:
+                    for time_interval in [60]:#,120]:
+                        #for differentiate in[0,1]:
+                        model, testx, testy,pdt_index = train(
+                            #trains model based on the variables above
+                            timesteps,future,time_interval,Permutation=permutation,
+                            place=place,activation=activation,preserve=0,
+                            patience=0, smooth=0,save_img=1, epochs=epochs, multipred=multipred,
+                            nodes1=nodes, nodes2=nodes, batch_size=batch_size,
+                            weather=weather, time=time, differentiate=differentiate,
+                            method =method, optimized_features=optimized_features,
+                            k=how_many,categorical=categorical,catkeys=keys,holiday=holiday,
+                            k2=n_special,special=special)
+                        ii+=1
+                        print(ii)
 '''
 for activation in ["relu","sigmoid"]:
-    for timesteps in [2,5,20,25,30]:
-        for time_interval in [60,120]:
-            for differentiate in[0,1]:
-                for future in [1,2,3,5,10,15,20,25]:
-                    '''
-for method in ["covar"]:
-    for future in [10,15,20,25,30,35,40]:
-        model, testx, testy,pdt_index = train(
-            #trains model based on the variables above
-            timesteps,future,time_interval,Permutation=permutation,
-            place=place,activation=activation,preserve=0,
-            patience=0, smooth=0, epochs=epochs, multipred=multipred,
-            nodes1=nodes, nodes2=nodes, batch_size=batch_size,
-            weather=weather, time=time, differentiate=differentiate,
-            method =method, optimized_features=optimized_features,
-            k=how_many,categorical=categorical,catkeys=keys,holiday=holiday,
-            k2=n_special,special=special)
+    for timesteps in [20,25,30]:
+        for time_interval in [60]:#,120]:
+            #for differentiate in[0,1]:
+            for future in [1,2,3,5,10,15,20,25,30,35,40]:
+                model, testx, testy,pdt_index = train(
+                    #trains model based on the variables above
+                    timesteps,future,time_interval,Permutation=permutation,
+                    place=place,activation=activation,preserve=0,
+                    patience=0, smooth=0,save_img=1, epochs=epochs, multipred=multipred,
+                    nodes1=nodes, nodes2=nodes, batch_size=batch_size)'''
 
 '''
                 except:

@@ -1,4 +1,4 @@
-# Importing various packages
+# Importing various packages #RUN THIS SHIT YOU BIGOT
 from random import random, seed
 import numpy as np
 import matplotlib.pyplot as plt
@@ -73,7 +73,7 @@ def linreg_uni(time_interval,future_vision,timesteps,differentiate):
     X = [extract_samples2(x,timesteps,indices,datax,datay,ranger,Arrays[x]) for x in dims]
 
     del X,Arrays,ranger,indices
-
+    test_percentage = 20
     test_cursor = int((1-test_percentage/100)*datax.shape[0]) #where to split the data
     testx = datax[test_cursor:].squeeze()#+timesteps:]
     testy = datay[test_cursor:]#+timesteps:]
@@ -99,14 +99,13 @@ def linreg_uni(time_interval,future_vision,timesteps,differentiate):
             testy.shape[0],timesteps,
             future_vision,pdt_original,
             pdt_index,ypredict,physerr,
-            stds,means)
+            stds,means,dims)
     else:
         dataX, dataY, copy_last, manual_physical = error_check(
             testy.shape[0],timesteps,
             future_vision,pdt_original,
             pdt_index,ypredict,physerr,
-            stds,means)
-
+            stds,means,dims)
     dir = "linreg_bench"
     with open(dir+'/benchmarks_%dinterval_unipred.txt'%(time_interval),'a')as f:
         f.write('%f %f %f %f %d %d %d\n'% (physerr,np.mean(err),median,copy_last,timesteps,future_vision,differentiate))
@@ -170,3 +169,7 @@ def linear_results():
             if time_interval==120 and diff==0:
                 return linreg,time,k,t
 #linreg_uni(time_interval,future_vision,timesteps,differentiate)
+for time_interval in [60]:
+    for future_vision in [2,3,6,10,15,20,25,30,35,40]:
+        for timesteps in [20]:
+            linreg_uni(time_interval,future_vision,timesteps,0)
