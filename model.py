@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.layers import Concatenate, Input, CuDNNLSTM,Dense,Dropout,Embedding, Flatten
 from tensorflow.keras.models import Model, Sequential
-np.random.seed(0)
+np.random.seed(1)
 '''
 timesteps = how many time increments to feed into the model
 #future_vision = how many time increments into the future you wanna look
@@ -50,7 +50,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
                                                 k=20,
                                                 categorical=0,
                                                 catkeys=["weekday"],
-                                                holiday=0,k2=0,special=0):
+                                                holiday=0,k2=0,special=0,lr=1,b1=0.9,b2=0.999):
     try:
         f =open('/home/josephkn/Documents/Fortum/master/models/%dtimesteps_%dtimeinterval_%dforward_%de_%dn_%s_multipred=%d'%(timesteps,time_interval,future_vision,epochs,nodes1,Permutation,multipred))
         f.close()
@@ -147,7 +147,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     #    dropout = Dense(nodes1,kernel_initializer='glorot_normal',
     #                        activation=activation)(dropout)
 
-    dropout = Dropout(0.25)(lstm)
+    #dropout = Dropout(0.25)(lstm)
 
     if categorical or holiday:
         input2 = Input(shape=(cat.shape[-1],))
@@ -157,7 +157,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
 
         embed_dense = Dense(32,kernel_initializer='glorot_normal',
                             activation=activation)(embeddingflat)
-        marge = Concatenate()([dropout,embed_dense])
+        marge = Concatenate()([lstm,embed_dense])
         dropout = Dropout(0.25)(marge)
         outputs = Dense(1,kernel_initializer='glorot_normal',
                             activation='linear')(dropout)
@@ -170,6 +170,7 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
         model = Model(inputs=[input1,input2],outputs=outputs)'''
 
     else:
+        dropout = Dropout(0.25)(lstm)
         outputs = Dense(1,kernel_initializer='glorot_normal',
                             activation='linear')(dropout)
 
@@ -193,8 +194,8 @@ def train(timesteps,future_vision,time_interval,batch_size=64,
     '''
     filepath = '/home/josephkn/Documents/Fortum/master/models/best.h5'
     checkpoint = ModelCheckpoint(filepath, monitor='val_mean_absolute_error', verbose=1, save_best_only=True, mode='min')
-
-    model.compile(loss='mean_squared_error', optimizer= 'adam',metrics=['mse','mae'])
+    optimizer = tf.keras.optimizers.Adam(lr=lr,beta_1=b1,beta_2=b2)
+    model.compile(loss='mean_squared_error', optimizer= optimizer,metrics=['mse','mae'])
     if holiday or categorical:
         datax = [datax,catx]
         testx = [testx,cat_test]
